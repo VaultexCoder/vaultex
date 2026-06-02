@@ -1,17 +1,12 @@
-# Rust
+# Rust build artifacts
 /target/
 **/*.rs.bk
-Cargo.lock.bak
 
-# IDE
+# Editor / OS noise
 .idea/
 .vscode/
 *.swp
-
-# OS
+*.swo
+*~
 .DS_Store
 Thumbs.db
-
-# Local environment overrides
-.env
-.env.local

@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.6] - 2026-06-02
+
+### Fixed
+- **Android: messages from server contacts were never delivered, even after registration was fixed.** The v0.10.5 release fixed Android's server-registration flow but the WebSocket connection that delivers messages was never opened — `NavGraph` materialized a `NetworkManager` ViewModel but never called `setCredentials` or `connect`, and `MessagingManager.networkManager` stayed `null`. The desktop-side "Contact added in local-only mode" symptom looked unfixed because the Android client never came online on the server. `NavGraph` now wires both managers and triggers `networkManager.connect(Config.DEFAULT_SERVER_URL)` on `isAuthenticated`. Verified end-to-end: desktop registered (account `39c9922e-…`), Android registered (account `6024dd19-…`), desktop adds Android via `/accounts/by-key` without falling back to local-only, desktop sends a Double Ratchet + sealed-sender message, server queues + delivers, Android logcat shows `MessagingManager onMessage senderId=39c9922e-… payloadLen=1098`.
+- **Android: contact-add resolved a local UUID instead of the server's account_id** (also in v0.10.5 but worth restating). The fix in commit `68fee24` is now actually exercised on the wire by the WS fix above.
+
+### Added
+- **Website: GitHub Releases-backed download buttons with self-hosted fallback.** `useLatestRelease` fetches `/repos/VaultexCoder/vaultex/releases/latest` at runtime and the platform cards swap their URLs in once the API answers (8s budget; static `/downloads` URLs are used otherwise). Result: shipping a new binary version no longer requires rebuilding and redeploying the Astro site — just upload assets to a GitHub release and the marketing site picks them up automatically.
+
+### Internal
+- Diagnostic `Log.i` instrumentation added to `NavGraph`, `NetworkManager`, `WebSocketClient`, and `MessagingManager` covering connect lifecycle + server message arrival. Future WS regressions surface from logcat alone, no emulator/Maestro needed.
+
+Android only — desktop builds (Linux .deb, Windows .exe) remain at 0.10.3.
+
+## [0.10.5] - 2026-06-02
+
+### Fixed
+- **Android: default server URL was still `http://localhost:8080`.** The v0.10.3 release notes claimed the localhost default was switched to the production demo server, but that fix only touched `apps/desktop/src-tauri/src/state.rs` and `apps/desktop/src/stores/networkStore.ts`. Three independent hardcoded defaults in `NetworkState`, `ApiClient`, and `SettingsState` on Android were missed. A fresh APK install therefore tried to reach `localhost:8080` on registration and silently failed with no UI hint. Centralized as `Config.DEFAULT_SERVER_URL = "https://api.vaultexchat.org"` so all three sites stay in sync going forward.
+
+### Added
+- **Android Settings → Test Connection button.** Pings `/api/v1/health` on the current server URL and shows a 4-second success / failure card. Removes the "is the server reachable?" guesswork that previously could only be answered by attempting registration.
+
+Android only — desktop builds (Linux .deb, Windows .exe) remain at 0.10.3.
+
+## [0.10.4] - 2026-06-01
+
+### Fixed
+- **Android: tapping "Generate Identity Key" crashed the app immediately.** `VaultexLib.INSTANCE`'s lazy `Native.load("vaultex_ffi", ...)` throws `UnsatisfiedLinkError` (a `java.lang.Error` subclass — not an `Exception`) when `libvaultex_ffi.so` is missing from the APK, and `AuthViewModel.register()`'s `catch (Exception)` blocks did not intercept Errors, so the LinkageError escaped the coroutine and tore down the process. Broadened the three relevant catches to `Throwable`, and now cross-compile + bundle `libvaultex_ffi.so` for `arm64-v8a` and `x86_64` so the FFI path actually works rather than just degrading gracefully.
+
+Android only — desktop builds (Linux .deb, Windows .exe) remain at 0.10.3.
+
+## [0.10.3] - 2026-06-01
+
+### Fixed
+- **Default server URL switched from localhost to the production demo server.** A fresh install on a new machine — without any environment variables set, without running `launch-alice.ps1` / `launch-bob.ps1` to override — no longer defaults to `http://localhost:8080` and gets stuck on the login screen with no way to reach Settings. Default is now `https://api.vaultexchat.org`. `VAULTEX_SERVER_URL` still overrides as before.
+
+  Applies to both the Rust backend (`AppState::new` in `apps/desktop/src-tauri/src/state.rs`) and the React frontend (`networkStore` initial state in `apps/desktop/src/stores/networkStore.ts`). The two stayed in sync per the v0.10.2 `get_default_server_url` wiring.
+
+  Long-term UX fix (allow editing the server URL from the login screen, before registration) is tracked in the project issue tracker — this release is the immediate unblock.
+
 ## [0.10.2] - 2026-05-31
 
 ### Fixed
