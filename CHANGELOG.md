@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.9] - 2026-06-08
+
+### Fixed
+- **Android: tapping the "I have written down my seed phrase" label was a no-op.** `RegisterScreen.kt`'s `SeedStep` rendered the checkbox-plus-label as a `Row` where only the bare `Checkbox` itself handled `onCheckedChange`; the surrounding `Row` and the `Text` label had no click handler. A user tapping anywhere on the row except the tiny checkbox hit-target got nothing — including a disabled "Continue" button. Wrapped the `Row` in `Modifier.toggleable` with `role = Role.Checkbox` so the whole row is the hit-target and TalkBack reads it as a checkbox. Caught by `auth_flow` in the new Maestro suite.
+- **Android: tapping anywhere off the search bar in Chats didn't dismiss the on-screen keyboard.** The Compose `OutlinedTextField` in `ChatsScreen` held focus until the user navigated away. The IME is a separate system service so it survives even an activity restart (`am force-stop` + `am start`), and the keyboard would stay up covering the bottom nav. Visible to real users as "the keyboard won't go away unless I exit the app"; visible to the acceptance suite as every flow-after-search failing because the bottom nav was hidden. Added `Modifier.clickable { focusManager.clearFocus() }` to the parent `Column` so any outside tap clears the focus.
+- **Android: bottom-nav tab taps couldn't be reliably automated, and on Samsung devices were occasionally routed to the system Settings app.** `BottomNavBar.kt` now exposes each `NavigationBarItem`'s `testTag` (`nav_tab_chats`, `nav_tab_groups`, `nav_tab_calls`, `nav_tab_settings`) as an Android resource-id via `Modifier.semantics { testTagsAsResourceId = true }`. Accessibility tools and UI automation can now target tabs by stable id; the text-based fallback was matching Samsung's Edge Panel + Bixby surfaces that expose the same strings.
+- **Website: download buttons were stuck on the previous release.** The marketing site's `useLatestRelease` hook fetches the latest GitHub release at runtime and rewrites the static download links, but the nginx CSP had `default-src 'self'` with no `connect-src` override, so the `fetch` to `https://api.github.com` was silently blocked. New CSP allows `connect-src 'self' https://api.github.com`. Effect: every published GitHub release now updates the download buttons within one page load — no website rebuild required.
+
+### Added
+- **Comprehensive acceptance test suite.** `docs/testing/acceptance-test-plan.md` rewritten to v2.0 (per-platform tags `[W]/[L]/[A]`, honest known-limitations table, Phase 15 cross-device scaffold). Three new tooling layers:
+  - Android (Maestro on Windows): 10 flows covering register → groups MVP → 1:1 messaging → contacts → search → PIN setup → settings. All 10 green on a Samsung Tab S6 Lite over USB. The `auth_flow.yaml` exercises the full register-skip-PIN-start-messaging path with `clearState`; per-flow logs and Maestro debug screenshots land in `out/acceptance-<UTC>/android-maestro/`.
+  - Windows desktop (PowerShell smoke + WebDriverIO via `tauri-driver`): `scripts/test/windows-smoke.ps1` launches the installed binary, waits for the main window, screenshots it, and kills cleanly (~5s end-to-end). `apps/desktop/e2e/` ships a WDIO + `tauri-driver` scaffold; session attach is verified.
+  - Orchestrator: `scripts/test/run-acceptance.ps1` chains all three phases and writes `out/acceptance-<UTC>/summary.md` with PASS/FAIL per phase. Drives Maestro on Windows directly (no WSL hop) so it can see USB-connected Android devices via the Windows `adb` server. Auto-discovers a portable Temurin JDK 17 + Maestro distribution under `%USERPROFILE%`.
+
+### Repo hygiene
+- `/out/` and `apps/desktop/e2e/node_modules/` added to `.gitignore` so test artifacts don't bloat the repo.
+
+Linux desktop bundle (.deb) still tracks v0.10.3 — built locally on the Linux laptop on next deploy cycle.
+
 ## [0.10.8] - 2026-06-03
 
 ### Fixed
