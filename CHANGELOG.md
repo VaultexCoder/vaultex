@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.8] - 2026-06-03
+
+### Fixed
+- **Android: Groups tab was a UI stub — tapping a group did nothing, and "create group" silently produced empty groups with no way to add members or send messages.** `GroupsScreen`'s list item had `onClick = { /* TODO: navigate to group chat */ }` and `CreateGroupDialog`'s confirm handler always passed `emptyList()` for members, so even when `GroupsViewModel.createGroup` was wired to insert members, none were ever provided. Wired a new `Screen.GroupChat` route ("group/{groupId}"), rewrote `CreateGroupDialog` as a contact multi-select with checkmark affordance, and added a full `GroupChatScreen` (TopAppBar back nav, member chips with per-member remove, message list with a 1.5s poll while open, send input bar, AddMemberDialog from the remaining contacts). `MessagingManager.sendGroupMessage(groupId, content)` fan-outs the encrypted envelope to every member's account_id with a stable `message_id` so receivers can dedupe.
+
+Android only — desktop builds remain at 0.10.7.
+
+## [0.10.7] - 2026-06-02
+
+### Fixed
+- **Android: app crashed when receiving a message from a peer not in the local contacts table.** `MessagingManager.onMessage` inserted a row whose `contact_id` had a `FOREIGN KEY` into `contacts`; if the sender wasn't in `contacts` (first-contact, identity-key reset, queue flush after contact removal) the insert threw `SQLiteConstraintException` on the worker thread and killed the process. Auto-create a placeholder contact named `"Unknown (xxxxxxxx)"` and wrap the worker body in a top-level catch so no future DB / decode / decryption error can ever take the process down again. Root cause of the user-reported cascade after the QR-screen incident.
+- **Android: register left old vault data in place.** `AuthViewModel.register` never called `DatabaseProvider.wipeAll`, so contacts / messages / sessions / signed_prekeys / one_time_prekeys from the prior identity survived. Visible symptoms: old contacts under the new identity, and OTPK PK collision aborting the register half-way (identity written, prekeys not, leaving an unusable vault). Now wipes everything when an existing identity is found before starting register.
+- **Android: register writes are now atomic.** Identity + signed prekey + OTPKs + passphrase hash are committed in a single `db.withTransaction { … }`. Reordered so passphrase hash writes FIRST inside the transaction — combined with the strict login check below, an OS-kill mid-register can no longer leave the vault in a state where login would silently authenticate.
+- **Android: `login()` no longer silently authenticates when the passphrase hash is missing.** The pre-fix path skipped the hash check entirely when `settings.passphraseHash` was null and fell through to the authenticated branch. Now returns a clear "vault corrupted, create new identity" error instead.
+- **Android: sealed-sender messages no longer all merge into one inbox.** `onSealedMessage` previously routed every sealed message to a single "unknown" contact key, crossing conversation boundaries. Until real unsealing is wired through the FFI, drop them with a log instead.
+- **Desktop: group messages can now actually decrypt.** `send_group_message` encrypted each fan-out with `ad = member_identity_hex` while the receive path decrypts with `ad = account_id`, so the AEAD tag check always failed. Resolve members to their account_id before encrypting and use the resolved id as both the sessions key and the AD. Also include the missing `x3dh_init` field on the wire so the receiver's lazy session-create branch can run on the first group message to a freshly-added member.
+- **Desktop: `MessagePayload.group_id` is now validated and rejected when malformed.** A peer could otherwise smuggle structured data (megabyte strings, control chars, IDs of groups the peer was kicked from) through the encrypted field. Reject anything that isn't either the placeholder or exactly 64 ASCII hex chars; on mismatch the message is treated as a 1:1 instead of polluting the local store.
+- **Desktop: `MessagePayload`'s on-the-wire JSON shape no longer leaks group-vs-DM via padding bucket size.** The previous `skip_serializing_if = "Option::is_none"` meant adding `group_id` pushed mid-sized DMs into the next padding bucket, exposing conversation type to an on-path observer. The padded serializer now always emits the field with a fixed-size placeholder for DMs so the wire shape is invariant.
+
+### Security
+- **FFI: negative length parameters can no longer trigger SIGSEGV or memory disclosure.** Every entry that took a `*const u8` + `i32 len` pair did `std::slice::from_raw_parts(ptr, len as usize)`; a malicious Java caller passing `len = -1` cast to `usize::MAX` and sliced into unmapped memory. `catch_unwind` does NOT catch SIGSEGV, so the process death was unrecoverable. Added `crate::error::validate_len(len, name)` which rejects negative values and anything above an 8 MiB hard ceiling; applied at every FFI entry point. Worst offender was `ffi_secure_random_bytes`, where the caller-controlled `len` drove BOTH the random draw AND the `copy_nonoverlapping` into the caller's buffer.
+
+### Repo hygiene
+- **`.gitattributes`** added to stop `core.autocrlf=true` on Windows from marking `apps/desktop/src-tauri/Cargo.toml` as modified after every operation. Pin LF on source/config files; CRLF on `.bat`/`.cmd`/`.ps1`; binary on the obvious extensions. Followed by `git add --renormalize .` to bring the index into agreement.
+
+Android only — desktop builds (Linux .deb, Windows .exe) remain at 0.10.3.
+
 ## [0.10.6] - 2026-06-02
 
 ### Fixed
