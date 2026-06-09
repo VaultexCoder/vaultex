@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.10] - 2026-06-08
+
+### Fixed
+- **Desktop: cross-device group messages went into the void.** Sending a message to a group on Windows reached Linux's WebSocket handler and decrypted successfully, but `messagesStore.ts` only surfaced it in the Groups panel when `selectedGroupId === groupId` — and Linux didn't have the group locally because `create_group` uploaded an empty `member_account_ids` to the server and the server never pushed group membership notifications back. Two fixes: (1) `create_group` now resolves each member's identity-key-hex to their server account_id via the local contacts table and includes them in `ServerCreateGroupRequest.member_account_ids`, and (2) on the receive side `receive_message_inner` auto-discovers any unknown `group_id` from an incoming message and inserts a placeholder `StoredGroupInfo` with the sender + self as the known members. The frontend emits `groups-updated` after auto-discover so the Groups panel refreshes without a manual reload.
+- **Desktop: "Create Group" took a textarea of newline-separated identity keys, no contact picker.** Typing a nickname like "Bob" got passed straight through as a "member key" and `send_group_message` silently skipped because no contact had `identity_key_hex == "Bob"`. The Android Groups MVP shipped a proper contact multi-select in v0.10.8; desktop now has the same — a checkbox list of every contact in the local table, with a `0/N` counter, an empty-state hint that points users to the Chats tab if they have no contacts yet, and an 8-char identity-key fingerprint per row so users can disambiguate contacts with the same nickname.
+
+### Added
+- **Desktop: client version chip in Settings.** Bottom of the Settings screen now shows a tiny About section with "VAULTEX" + "v0.10.10 — Zero-knowledge encrypted messaging", matching the Android Settings > About row. The version comes from `getVersion()` in `@tauri-apps/api/app`, so it tracks `tauri.conf.json` and updates automatically per release.
+
 ## [0.10.9] - 2026-06-08
 
 ### Fixed

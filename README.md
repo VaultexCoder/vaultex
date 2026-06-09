@@ -39,7 +39,7 @@ The following stay private on the upstream GitLab repo:
 
 ## Provenance
 
-This snapshot was generated from upstream commit `5a972ea` on branch
+This snapshot was generated from upstream commit `6e01de6` on branch
 `develop` by `scripts/mirror-to-github.sh`. The sync is one-way
 (GitLab to GitHub) and is not automated — it runs manually at the
 maintainer's discretion. As a result, this mirror may lag the private
