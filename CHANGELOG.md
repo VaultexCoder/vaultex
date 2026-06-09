@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.13] - 2026-06-09
+
+### Fixed
+- **Android: Double Ratchet now wired into the relay-server message path.** Closes the gap documented in v0.10.12's "Known limitations" block. Both directions work end-to-end with the Pass-2 3-way harness (two consecutive PASS runs):
+  - **Receive (`MessagingManager.onMessageInner` → `RelayCrypto.decryptIncoming`)**: parses the Rust wire envelope `{header, ciphertext, x3dh_init?}`, runs `x3dhAccept` against our stored signed-prekey + one-time-prekey (consuming the named OTPK on success), initializes a receiver ratchet, decrypts with AD set to our own `account_id`, persists the updated session in the `sessions` table, then unwraps the inner `MessagePayload` for the chat list.
+  - **Send (`MessagingManager.sendMessage` → `RelayCrypto.encryptOutgoing`)**: lazy session establishment — if no session exists for the recipient, fetches their prekey bundle from `/api/v1/accounts/<id>/prekey_bundle`, runs `x3dhInitiate`, initializes a sender ratchet, encrypts the `MessagePayload`, and embeds the `x3dh_init` field so the receiver can complete the handshake. On subsequent sends, encrypts with the existing session. AD = recipient's `account_id`. Wire envelope is `serde_json`-compatible with what the Rust desktop emits — desktop ↔ Android interop verified against W ↔ A and L ↔ A 1:1 flows.
+  - Legacy plaintext-JSON receive (fallback) path is preserved so two older Android peers still interop while the network rolls forward.
+
+- **Android: group auto-discovery on incoming Double Ratchet messages.** When a decrypted `MessagePayload` has a `group_id`, `MessagingManager.handleIncomingGroupMessage` creates the `groups` row if it's new (using the desktop-side naming convention `Group <first8-hex>`), seeds initial members (us + sender), and inserts the message into `group_messages` keyed by the discovered group. Matches the desktop's `commands/messages.rs::receive_message_inner` auto-discover path. Without this, group messages from desktop arrived but never surfaced in the Android Groups tab.
+
+### Added
+- **`apps/android/.../messaging/RelayCrypto.kt`**: the new Double Ratchet wire codec for the relay path. Encapsulates parse → x3dhAccept → ratchetInitReceiver → ratchetDecrypt on the receive side and prekey-bundle-fetch → x3dhInitiate → ratchetInitSender → ratchetEncrypt on the send side. Designed to be independent of `P2PSessionManager` (which uses a different binary wire format for over-the-air P2P) but shares the same `sessions` table so a session established via one transport keeps ratcheting cleanly over the other.
+- **`KeyDao.getOneTimePreKey(id)`**: needed by the receive path to look up the OTPK named in the sender's `x3dh_init.used_one_time_prekey_id` field.
+
+### Changed
+- **Pass-2 3-way harness** (`scripts/test/run-cross-device-3way.ps1` + `apps/android/maestro/x_*.yaml`): now passes end-to-end against the Android + Windows + Linux trio. Covers register, contact exchange, all four 1:1 cross-device pairs (W↔A, L↔A), and a 3-member group with auto-discovery on every receiver.
+
 ## [0.10.12] - 2026-06-09
 
 ### Fixed
