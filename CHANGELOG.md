@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.11] - 2026-06-08
+
+### Fixed
+- **Desktop: client version chip in Settings was always blank.** v0.10.10 used a lazy `import('@tauri-apps/api/app')` to keep the module out of the test bundle, then swallowed any error with `.catch(() => {})`. In the packaged production shell the dynamic import never resolved (the Vite import map doesn't carry it forward into the bundled HTML), but the silent catch hid that. Switch to a static top-of-file `import { getVersion } from '@tauri-apps/api/app'` so Rollup pulls the module in, and render the error message inline in the About row if `getVersion()` ever does throw — no more silent failures.
+
+### Added
+- **Desktop: stdout-visible diagnostic for group send + receive.** `send_group_message` and `receive_message_inner` now `println!` at every decision point (members enumerated, encryption attempted per recipient, WebSocket vs HTTP path taken, auto-discover fired, group_id parsed from payload). Launch the binary from a terminal (Linux: `vaultex-desktop` from a shell; Windows: `cmd.exe → "%LOCALAPPDATA%\VAULTEX\vaultex-desktop.exe"`) and you'll see `[VAULTEX][groups]` lines flowing — those are what to paste when reporting cross-device group bugs.
+
+### Known limitations (honest)
+- Cross-device group messaging between Windows and Linux is **still not verified by the acceptance suite**. The Pass-1 Maestro / WDIO / PowerShell-smoke trio covers single-device UI flows only; cross-device delivery (Phase 15 of the test plan) is the open Pass-2 task #65 and was not run before this release. The diagnostic logs in this release are the bridge: please run a W↔L group send/receive with both apps launched from terminals and report the `[VAULTEX][groups]` output from both sides if the message still doesn't arrive.
+
 ## [0.10.10] - 2026-06-08
 
 ### Fixed
