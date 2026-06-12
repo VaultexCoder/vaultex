@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-06-12
+
+### Added
+- **Desktop voice calling (1:1).** Full call lifecycle on the desktop app: ring/answer/reject/hangup signaling relayed over the WebSocket, and real peer-to-peer **WebRTC audio media** (Opus + DTLS-SRTP) running in the WebView engine. The relay only forwards signaling; media flows device-to-device.
+  - Call commands (`start_call`/`answer_call`/`reject_call`/`hangup_call`/`send_ice_candidate`) wired to the relay; inbound `CallOffer`/`CallAnswer`/`IceCandidate`/`CallHangup`/`CallReject` drive `callStore` + the `RTCPeerConnection`. `call_id` is frontend-generated so ICE can trickle immediately.
+  - `apps/desktop/src/lib/webrtc.ts`: one `RTCPeerConnection` per call, mic capture (with a timeout + synthetic/recvonly fallback so a missing mic or permission prompt can't freeze a call), ICE trickling, remote `<audio>`, and a connection-state-driven `connected` transition.
+
+### Security
+- **SDP/ICE are authenticated-encrypted end-to-end** (libsodium `crypto_box` keyed by the parties' identity keys, X25519). The relay sees only ciphertext and cannot read or forge call signaling — SDP/ICE carry IP addresses, so this preserves the zero-knowledge guarantee. The answer/ICE are authenticated against the peer from the local call record, not the relay-stamped sender id (defeats a relay MITM). Inbound offers with a replayed `call_id` are dropped. Passed an internal Security Engineer sign-off (added rigor; not a substitute for the planned third-party audit).
+
+### Known limitations
+- **Linux desktop calls are signaling-only.** WebKitGTK does not expose `RTCPeerConnection` through Tauri/wry today (the WebRTC runtime feature is fixed before the setup hook runs; confirmed not a GPU issue), so Linux cannot establish call media yet. Tracked as a follow-up (needs a patched wry and/or a WebRTC-enabled WebKitGTK). Windows/macOS WebView engines support it.
+- Video calls are not implemented (voice only).
+
 ## [0.10.13] - 2026-06-09
 
 ### Fixed
