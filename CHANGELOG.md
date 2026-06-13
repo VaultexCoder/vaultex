@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-06-13
+
+### Added
+- **Android background calling — incoming calls ring when the app is closed.** A foreground service keeps the relay connection alive so a closed (or backgrounded) device still rings, with a full-screen `CallStyle` notification (Answer / Decline). Deliberately **no FCM**: a third-party push service would learn call metadata (who/when), so VAULTEX holds its own end-to-end-encrypted signaling connection instead — preserving the zero-knowledge guarantee.
+  - `ConnectionHolder`: app/process-scoped owner of the single relay WebSocket (previously ViewModel-scoped, so it died with the Activity). Routes call signaling straight to the app-scoped `CallManager` so calls ring with no UI alive.
+  - `CallSignalingService`: foreground service (`specialUse|microphone`) showing a low-priority "VAULTEX active" notification; started on login.
+  - Settings → **Background calling** toggle (default on). `POST_NOTIFICATIONS` requested at runtime. Duress-wipe and re-register tear down the service + connection.
+
+### Testing
+- The Windows→Android live-call harness gained a `VAULTEX_BG=1` path that backgrounds the app before the call and asserts the offer reaches `CallManager`, the full-screen ring posts, and answering via the notification connects both ends. Verified PASS (alongside the unchanged foreground path).
+
+### Known limitations
+- Calls ring across backgrounding and Activity death, but not a hard force-stop or an OS low-memory kill of the foreground service (rare) — the tradeoff of the FCM-free design.
+- Video calls are not implemented (voice only). Linux desktop calls remain signaling-only.
+
 ## [0.12.0] - 2026-06-13
 
 ### Added
