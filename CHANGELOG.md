@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-06-13
+
+### Added
+- **Android voice calling (1:1).** Native WebRTC audio on Android, interoperable with the desktop. A real call from the Windows desktop connects to a physical Android device with both ends reaching a connected `RTCPeerConnection` (Opus + DTLS-SRTP); the relay only forwards signaling.
+  - `apps/android/.../calls/CallManager.kt`: app-scoped WebRTC engine (`io.getstream:stream-webrtc-android`) — one `PeerConnection` per `call_id`, mic capture, STUN, ICE trickle, and a connection-state-driven `connected` transition. Mirrors the desktop `webrtc.ts`/`callStore.ts` so Android ↔ desktop calls interop.
+  - Inbound `CallOffer`/`CallAnswer`/`IceCandidate`/`CallHangup`/`CallReject` are routed from `WebSocketClient` → `MessagingManager` → `CallManager`; a global incoming/active-call overlay (`MainActivity`) surfaces a call from any screen and gates answering on a `RECORD_AUDIO` runtime request.
+  - **Outgoing calls from Android**: the conversation call button (`ChatScreen.onCallClick`) is wired to `CallManager.startOutgoing`, mic-gated, so Android can initiate as well as answer.
+
+### Security
+- **SDP/ICE are authenticated-encrypted end-to-end on Android too** (libsodium `crypto_box` keyed by the parties' identity keys, via the new `ffi_encrypt_to_identity`/`ffi_decrypt_from_identity` FFI). The relay sees only ciphertext. Answers and ICE are authenticated against the peer's identity key from the **local** call record, not the relay-stamped sender id (defeats a relay MITM); replayed `call_id` offers are dropped. Passed an internal Security Engineer sign-off (added rigor; not a substitute for the planned third-party audit).
+
+### Testing
+- **Windows → Android live-call acceptance harness** (`scripts/test/run-android-call.ps1` + `apps/desktop/e2e/cross-device-android-call.ts` + `apps/android/maestro/x_add_one_contact.yaml`, `x_answer_call.yaml`): drives a real desktop→device call (tauri-driver + Maestro + `adb logcat`) and asserts both ends reach a connected `RTCPeerConnection`. Verified PASS.
+
+### Known limitations
+- **Incoming calls do not survive app process death.** The pending offer is held in the `CallManager` singleton (in-memory, not persisted), so if the app is killed it cannot be rung back. A foreground service / push-notification path is the planned follow-up.
+- Video calls are not implemented (voice only).
+- Linux desktop calls remain signaling-only (see v0.11.0).
+
 ## [0.11.0] - 2026-06-12
 
 ### Added
