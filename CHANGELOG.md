@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-06-15
+
+### Added
+- **iOS app — messaging works (MVP).** The SwiftUI iOS app is now a functional messenger: create/unlock an identity (passphrase, PBKDF2-verified), add contacts by identity key, and 1:1 relay messaging end-to-end. The crypto FFI (X3DH, Double Ratchet, sealed sender) runs on-device and the full register → encrypt → relay → decrypt path is **verified live against the production server**. Builds for the iOS Simulator (Xcode 26 / iOS 26.5); 19 XCTests + 2 live integration tests pass. (Transports, voice/video calls, and APNs are a later pass.)
+- **macOS desktop build.** The Tauri desktop app now builds a macOS `.app` (`cargo tauri build --bundles app`); same app as Windows/Linux.
+- **Android "Find on Server" (opt-in discovery).** Browse the server directory by display name and add contacts with fingerprint confirmation, instead of pasting 64-char identity keys (Settings → Discoverable toggle + display name; Chats → Add contact → Find on Server). Brings the desktop discovery feature to Android.
+
+### Fixed
+- **Desktop: contacts vanished on restart.** Contacts were persisted but the frontend never reloaded them into the store after unlock — now `loadContacts()`/`loadBlockedContacts()` run on auth.
+- **Android: PIN-protected unlock was a dead-end.** With a PIN set, the correct passphrase appeared "not recognized" and the PIN screen was never reached. A correct passphrase now always unlocks; the PIN is a reachable quick-unlock with a "use passphrase instead" fallback (the duress-PIN wipe is unchanged).
+- **iOS: authenticated REST + relay send.** Fixed the iOS REST client to Ed25519-**sign** requests (the server requires signed requests, not bearer tokens) and to authenticate `/messages/send` — without which every authenticated iOS call would 401. Also corrected several wrong server route paths.
+
 ## [0.13.0] - 2026-06-13
 
 ### Added
