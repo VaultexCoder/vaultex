@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.2] - 2026-06-16
+
+### Fixed
+- **Desktop: server URL defaulted to `wss://…/ws` and "Test Connection" failed.** After the app connected, the WebSocket layer emitted its connection-status event carrying the derived socket URL (`wss://api.vaultexchat.org/ws`) as the server URL, which the frontend then adopted as its stored server URL. "Test Connection" and registration build a REST request (`<base>/api/v1/ping`), so a `wss://…/ws` base produced `wss://…/ws/api/v1/ping` — wrong scheme and path — and never connected. The backend now emits the REST base (`https://api.vaultexchat.org`) in those events, matching the other status emits, so the stored URL stays correct.
+
 ## [0.13.1] - 2026-06-15
 
 ### Added
