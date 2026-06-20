@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-06-20
+
+### Added
+- **Call ringing.** Incoming calls now ring out loud and keep ringing until answered/declined, like the phone dialer and other VoIP apps. Android loops the user's default ringtone and vibrates, honouring the ringer mode (full ring in Normal, vibrate-only in Vibrate, silent in Silent); the desktop rings through the speakers. Callers also hear a ringback tone while waiting for the peer to answer.
+
+### Fixed
+- **Android → desktop voice calls stuck on "Connecting" forever.** When the desktop was the answerer, its peer connection isn't created until the call is answered, but the caller starts trickling ICE candidates the moment it sends the offer — every candidate that arrived before Answer was silently dropped, leaving the answerer with no remote candidates so ICE never started. The callee now buffers early ICE candidates per call and replays them when the call is answered. Calls connect in both directions (verified over a direct host↔host LAN path). (Desktop→Android already worked because the caller creates its connection before sending the offer.)
+- **Deleting a contact crashed the Android app.** Removing a contact that had any message history threw a `FOREIGN KEY constraint failed` error because `messages`/`sessions` referenced the contact with no cascade. Contact deletion now removes the contact's messages, reactions, edits, and session in a single transaction.
+
 ## [0.13.2] - 2026-06-16
 
 ### Fixed
