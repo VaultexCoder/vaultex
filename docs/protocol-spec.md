@@ -255,6 +255,36 @@ Self-destruct implemented client-side:
 5. Server NEVER stores plaintext — automatic after delivery
 ```
 
+### Encrypted Media Attachments
+
+Photos and arbitrary files are sent E2E-encrypted, keeping the server
+zero-knowledge — it stores only an opaque ciphertext blob under a random
+`media_id`, never the filename, type, key, or content. (Issue #149.)
+
+```
+Attachment send/receive protocol:
+1. Sender encrypts the file with a fresh random 32-byte file key:
+     ffi_encrypt_file(plaintext) -> (ciphertext, file_key)        # XChaCha20-Poly1305
+2. Uploads the CIPHERTEXT only: POST /api/v1/media -> { media_id }
+   (server stores the opaque blob; size-capped; no auth-visible metadata)
+3. Sends a normal Double-Ratchet message whose encrypted inner payload
+   carries the attachment metadata + the file key:
+     { mediaType: "image"|"file",
+       attachment: { mediaId, fileName, mimeType, fileSize,
+                     fileKeyHex, thumbnailBase64? } }
+   The file key never leaves the E2E envelope, so the server cannot
+   decrypt the blob it stores.
+4. Recipient decrypts the message, GET /api/v1/media/:media_id for the
+   ciphertext, then ffi_decrypt_file(ciphertext, file_key) -> plaintext.
+   Images render inline (small encrypted thumbnail for fast preview);
+   other files show a name/size chip with save.
+
+Zero-knowledge: media_id is random and unlinkable to sender/recipient;
+filename/type/size/key live only inside the E2E-encrypted message.
+Cross-platform: the attachment payload format is identical on
+desktop / Android / iOS so blobs interop.
+```
+
 ---
 
 ## 5. Backend — Server Infrastructure
@@ -1123,7 +1153,7 @@ vaultex/
 ### Phase 1d — Polish & Release (Weeks 13–16)
 
 ```
-[ ] Media support (images, files — encrypted)
+[~] Media support (images, files — encrypted) — server + desktop + Android done; iOS in progress (#149)
 [ ] Group messaging (sender key protocol)
 [ ] Search (local SQLCipher FTS5)
 [ ] Notification system (OS integration)

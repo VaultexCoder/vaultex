@@ -52,6 +52,39 @@ pub struct MessagePayload {
     /// never sees this field — it lives inside the Double Ratchet ciphertext.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub group_id: Option<String>,
+    /// Message kind: "text" (default/absent), "image", or "file". Lets the
+    /// receiver decide whether to render an attachment. Absent for plain text
+    /// so older clients + text messages keep the identical wire shape.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub media_type: Option<String>,
+    /// Encrypted-attachment metadata (present only when `media_type` is set).
+    /// The per-file key travels here inside the Double Ratchet ciphertext, so
+    /// the server (which only stores the opaque blob by `media_id`) can never
+    /// decrypt the file. See issue #149.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attachment: Option<Attachment>,
+}
+
+/// Metadata for one encrypted media attachment. The ciphertext blob is uploaded
+/// to the server under `media_id`; everything here — including the 32-byte file
+/// key as hex — stays inside the E2E-encrypted message payload. Field names are
+/// the cross-platform wire contract (snake_case).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Attachment {
+    /// Server media id (UUID string) for the uploaded ciphertext blob.
+    pub media_id: String,
+    /// Original file name (for display + save).
+    pub file_name: String,
+    /// MIME type, e.g. "image/jpeg".
+    pub mime_type: String,
+    /// Plaintext size in bytes.
+    pub file_size: u64,
+    /// 32-byte per-file key, hex-encoded (64 chars). Used with `ffi_decrypt_file`
+    /// to recover the plaintext after download.
+    pub file_key_hex: String,
+    /// Optional small base64 JPEG thumbnail for fast inline image preview.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thumbnail_base64: Option<String>,
 }
 
 impl MessagePayload {
@@ -61,6 +94,8 @@ impl MessagePayload {
             body: body.into(),
             ttl_seconds: None,
             group_id: None,
+            media_type: None,
+            attachment: None,
         }
     }
 
@@ -70,7 +105,16 @@ impl MessagePayload {
             body: body.into(),
             ttl_seconds: Some(ttl_seconds),
             group_id: None,
+            media_type: None,
+            attachment: None,
         }
+    }
+
+    /// Attach an encrypted media file. `media_type` is "image" or "file".
+    pub fn with_attachment(mut self, media_type: impl Into<String>, attachment: Attachment) -> Self {
+        self.media_type = Some(media_type.into());
+        self.attachment = Some(attachment);
+        self
     }
 
     /// Tag a payload as belonging to a group conversation. Chainable so the
@@ -160,6 +204,36 @@ impl MessagePayload {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_text_message_omits_attachment_fields() {
+        // A plain text message must not emit media_type/attachment, so the wire
+        // shape is identical to older clients (backward compatible).
+        let json = serde_json::to_string(&MessagePayload::new("hi")).unwrap();
+        assert!(!json.contains("media_type"));
+        assert!(!json.contains("attachment"));
+    }
+
+    #[test]
+    fn test_attachment_roundtrip() {
+        let att = Attachment {
+            media_id: "11111111-1111-1111-1111-111111111111".into(),
+            file_name: "photo.jpg".into(),
+            mime_type: "image/jpeg".into(),
+            file_size: 12345,
+            file_key_hex: "ab".repeat(32), // 64 hex chars
+            thumbnail_base64: None,
+        };
+        let payload = MessagePayload::new("[Image]").with_attachment("image", att.clone());
+        let json = serde_json::to_string(&payload).unwrap();
+        // Cross-platform wire keys (snake_case).
+        for key in ["media_type", "attachment", "media_id", "file_name", "mime_type", "file_size", "file_key_hex"] {
+            assert!(json.contains(key), "missing wire key {key}");
+        }
+        let restored = MessagePayload::from_bytes(json.as_bytes()).unwrap();
+        assert_eq!(restored.media_type, Some("image".into()));
+        assert_eq!(restored.attachment, Some(att));
+    }
 
     #[test]
     fn test_payload_without_ttl_roundtrip() {

@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-07-08
+
+### Added
+- **Encrypted photo & file attachments (#149) — cross-platform.** Send and receive
+  photos and files on iOS and Android, wire-compatible with each other. Each file is
+  encrypted client-side with a fresh random key (XChaCha20-Poly1305 via `ffi_encrypt_file`);
+  only the ciphertext is uploaded as an opaque blob (the server stays zero-knowledge), and
+  the file key travels solely inside the E2E-encrypted message payload
+  (`MessagePayload.media_type` + `attachment`). Images render inline; tapping an image opens
+  a fullscreen viewer with save/share (iOS) or the system viewer (Android); files download
+  and open via a share sheet. Verified end-to-end iPhone↔Android in both directions.
+
+### Fixed
+- **Android attachments never decrypted.** The JNA mirror of the Rust `FfiFileEncryptResult`
+  struct omitted 4 bytes of tail padding on 64-bit, so the file key was read at the wrong
+  offset — every attachment failed with "ciphertext authentication failed". Corrected the
+  struct layout.
+- **Android outgoing messages could freeze at "sending".** `sendMessage` had no error
+  handling, so any exception in the send path silently killed the coroutine and left the
+  message stuck at ⏳ forever. It now fails fast to "failed" (with logging) and bounds the
+  prekey-bundle fetch with a timeout.
+- **iPhone-initiated voice calls never connected (#125).** Swift's uppercase `UUID` callIds
+  didn't match Android's lowercase-normalized ones, so the iPhone-as-caller couldn't match
+  the peer's `call_answer`/ICE to its session and the call stuck at "ringing". CallIds are
+  now normalized to lowercase at every signaling entry point.
+
+## [0.14.1] - 2026-06-28
+
+### Fixed
+- **iOS could not receive messages.** The iOS app's WebSocket authentication handshake diverged from the server contract (which the Android client implements correctly) in three ways: it sent an ISO-8601 *string* timestamp instead of a `u64` Unix-seconds value, signed `"{timestamp}|{account_id}"` instead of `"{timestamp}:websocket"`, and sent the signature under the JSON key `signature_hex` instead of `signature`. The server rejected every connection with `auth_error`, so an iOS client could register and *send* over HTTP but its relay WebSocket never authenticated — meaning it could never *receive* relayed messages. Fixed `sendAuth` to match the server and Android exactly. Verified end-to-end against the production relay with a two-device cross-device round-trip (register → X3DH add-contact → send → receive).
+
+### Added
+- **Cross-platform iOS acceptance harness.** iOS is now part of the automated acceptance flow: an iOS Maestro runner (`apps/ios/scripts/run-maestro-tests.sh`), a new "iOS Maestro sweep" phase in `scripts/test/run-acceptance.ps1` (driven over SSH to the Mac against a simulator), a two-simulator cross-device relay round-trip, and an identity-key test hook mirroring Android. The acceptance test plan gains the `[i]` iOS platform tag and one-time iOS rig setup.
+
 ## [0.14.0] - 2026-06-20
 
 ### Added
