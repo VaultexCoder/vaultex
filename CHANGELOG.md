@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-07-19
+
+### Added
+- **Off-grid mesh networking (ADR-0005) — cross-platform, disaster-relief.** Messages
+  now relay device-to-device across a mix of radios (Bluetooth LE, Local WiFi, and — on
+  iPhone↔iPhone — off-grid WiFi via MultipeerConnectivity/AWDL) with no internet or router.
+  A transport-agnostic `MeshRelay` (TTL-flood + duplicate suppression + store-and-forward)
+  sits above every transport, so a frame arriving on one radio is re-flooded over the
+  others — an iPhone can bridge a nearby Android to a distant iPhone. The wire frame
+  (`VXMH`) is byte-identical between iOS and Android (verified by a shared golden-vector
+  test) and stays backward-compatible with direct sealed-sender blobs.
+- **Open discovery + SOS beacon (opt-in).** A new "Off-Grid Rescue" mode broadcasts your
+  name + public key so nearby people can find you with no infrastructure, and a **SOS**
+  beacon pins you to the top of everyone's "People Nearby" list and travels further. Beacons
+  are Ed25519-signed (no one can raise an SOS in your name) and freshness-bounded against
+  replay. Off by default; it deliberately reveals identity only while enabled.
+- **iOS off-grid WiFi transport.** Productised the MultipeerConnectivity/AWDL transport
+  (previously a stub) as the high-bandwidth iPhone↔iPhone lane for the mesh, and fixed the
+  Bonjour service registration that was silently blocking its discovery.
+- **Mesh diagnostics + field-test harness.** A diagnostics screen (live transports, peers,
+  mesh counters) and a documented multi-device field-test protocol
+  (`docs/testing/offgrid-mesh-field-test.md`).
+
+### Fixed
+- **Silent message loss on Android P2P.** A directed message was marked "sent" and the
+  reliable relay/queue fallback skipped whenever any mesh neighbour existed, even one that
+  was no route to the recipient. Directed multi-hop origination is deferred until the mesh
+  carries delivery acknowledgements; directed sends now fall back to the reliable path.
+
 ## [0.15.0] - 2026-07-08
 
 ### Added
