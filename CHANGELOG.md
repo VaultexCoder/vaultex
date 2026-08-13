@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-08-13
+
+Server + website only — desktop/Android/iOS unchanged this cycle, no client
+binaries republished.
+
+### Added
+- **Website visitor counter (#151).** vaultexchat.org now shows an aggregate count of
+  site visits in the footer. Backed by a new unauthenticated `GET`/`POST
+  /api/v1/stats/visits` pair on `vaultex-server`, storing a single running total —
+  no IP address, user agent, or per-visit timestamp is ever recorded, consistent
+  with the server's zero-knowledge/no-metadata posture.
+- **Server traffic/connection statistics monitor (#152).** `vaultex-server` now
+  tracks active WebSocket connections, lifetime connection count, HTTP request
+  rate/status, and request latency as Prometheus metrics, exposed on a
+  separate internal-only port (`METRICS_PORT`, never routed by Caddy).
+  `docker-compose.prod.yml` adds `prometheus` (scrapes it) and `grafana`
+  (an auto-provisioned "VAULTEX Overview" dashboard, reachable only via a
+  loopback-bound port over SSH tunnel) so we can see connection/traffic
+  trends over time and get an early signal before the server is overloaded.
+  Starter alert thresholds live in `infrastructure/monitoring/alerts.yml`.
+  A separate outermost counter (`vaultex_all_requests_total`) tracks every
+  request including ones auth rejects, so a credential-stuffing/auth-probing
+  flood is still visible even though it never reaches the per-route metrics.
+  All metrics are aggregate-only — no IP addresses, account IDs, or other
+  per-caller identifiers in any label.
+
 ## [0.16.0] - 2026-07-19
 
 ### Added

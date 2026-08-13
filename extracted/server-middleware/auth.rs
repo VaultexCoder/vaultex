@@ -80,6 +80,11 @@ fn is_unauthenticated_route(method: &str, path: &str) -> bool {
     if method == "POST" && path == "/api/v1/messages/sealed" {
         return true;
     }
+    // Website visitor counter (#151) — the marketing site has no account to
+    // sign requests with; the endpoint only ever touches an aggregate counter.
+    if path == "/api/v1/stats/visits" && (method == "GET" || method == "POST") {
+        return true;
+    }
     false
 }
 
@@ -233,8 +238,11 @@ mod tests {
         ));
         assert!(is_unauthenticated_route("POST", "/api/v1/messages/send"));
         assert!(is_unauthenticated_route("POST", "/api/v1/messages/sealed"));
+        assert!(is_unauthenticated_route("GET", "/api/v1/stats/visits"));
+        assert!(is_unauthenticated_route("POST", "/api/v1/stats/visits"));
 
         assert!(!is_unauthenticated_route("GET", "/api/v1/messages/inbox"));
+        assert!(!is_unauthenticated_route("DELETE", "/api/v1/stats/visits"));
         assert!(!is_unauthenticated_route("DELETE", "/api/v1/accounts/self"));
         // Only GET /ping is public; other methods on the path are not.
         assert!(!is_unauthenticated_route("POST", "/api/v1/ping"));
